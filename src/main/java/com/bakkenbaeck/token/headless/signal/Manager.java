@@ -69,7 +69,7 @@ public class Manager {
     //TODO: Make this overridable in config file
     private final static boolean autoAcceptKeys = true;
 
-    private final int MAX_ATTACHEMENT_SIZE_BYTES = 1024 * 100;
+    private final int MAX_ATTACHEMENT_SIZE_BYTES = 100 * 1024 * 1024;
 
     private final static Tika tika = new Tika();
 
@@ -114,6 +114,10 @@ public class Manager {
         new File(this.dataPath).mkdirs();
         new File(this.attachmentsPath).mkdirs();
         new File(this.avatarsPath).mkdirs();
+    }
+
+    public String getAttachmentsPath() {
+        return attachmentsPath;
     }
 
     private IdentityKey getIdentity() {
@@ -1209,6 +1213,38 @@ public class Manager {
     private InputStream retrieveAttachmentAsStream(SignalServiceAttachmentPointer pointer, File tmpFile) throws IOException, InvalidMessageException {
         final SignalServiceMessageReceiver messageReceiver = new SignalServiceMessageReceiver(serviceUrls, localIdentity.getToshiId(), localIdentity.getPassword(), Base64.encodeBytes(localIdentity.getSignalingKey()), USER_AGENT);
         return messageReceiver.retrieveAttachment(pointer, tmpFile, MAX_ATTACHEMENT_SIZE_BYTES);
+    }
+
+    public String retrieveAttachmentAsDataURI(SignalServiceAttachment attachment) {
+        String dataUri = null;
+        if (attachment.isPointer()) {
+            File tmpFile = null;
+            try {
+                tmpFile = Util.createTempFile();
+                try {
+                    retrieveAttachment(attachment.asPointer(), tmpFile, false);
+                    try {
+                        String encodedBytes = Base64.encodeBytes(Files.readAllBytes(tmpFile.toPath()));
+                        dataUri = String.format("data:%s;base64,%s", attachment.getContentType(), encodedBytes);
+                    } catch (IOException e) {
+                        System.err.println("Failed to Base64 encode attachment: " + e.getMessage());
+                    }
+                } catch (IOException | InvalidMessageException e) {
+                    System.err.println("Failed to retrieve attachment (" + attachment.asPointer().getId() + "): " + e.getMessage());
+                }
+            } catch (IOException e) {
+                System.err.println("Failed to retrieve attachment (" + attachment.asPointer().getId() + "): " + e.getMessage());
+            } finally {
+                if (tmpFile != null) {
+                    try {
+                        Files.delete(tmpFile.toPath());
+                    } catch (IOException e) {
+                        System.out.println("Failed to delete temp file “" + tmpFile + "”: " + e.getMessage());
+                    }
+                }
+            }
+        }
+        return dataUri;
     }
 
     private SignalServiceAddress getPushAddress(String number) throws InvalidNumberException {

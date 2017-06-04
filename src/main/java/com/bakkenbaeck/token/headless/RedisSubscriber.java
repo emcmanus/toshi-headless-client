@@ -46,7 +46,7 @@ class RedisSubscriber extends JedisPubSub {
                     for (int i = 0; i < sofa.get("attachments").size(); i++) {
                         JsonNode urlNode = sofa.get("attachments").get(i).get("url");
                         if (urlNode != null) {
-                            String url = "attachments/" + urlNode.asText();
+                            String url = this.manager.getAttachmentsPath() + "/" + urlNode.asText();
                             Boolean exists = new File(url).exists();
                             if (exists) {
                                 attachments.add(url);

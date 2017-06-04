@@ -19,6 +19,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
+import java.util.regex.Pattern;
 
 class ReceiveMessageHandler implements Manager.ReceiveMessageHandler {
     private final Manager m;
@@ -135,10 +136,34 @@ class ReceiveMessageHandler implements Manager.ReceiveMessageHandler {
         if (message.getBody().isPresent()) {
             //System.out.println("Body: " + message.getBody().get());
             wrappedSOFA.setSofa(message.getBody().get());
+
+            if (message.getAttachments().isPresent()) {
+                String trimmedBody = message.getBody().get().trim();
+                Boolean valid = Pattern.matches("^SOFA::\\w+:.+\\}$", trimmedBody);
+                if (valid) {
+                    String marshaledArray = null;
+                    for (SignalServiceAttachment attachment : message.getAttachments().get()) {
+                        String marshaledAttachment = m.retrieveAttachmentAsDataURI(attachment);
+                        String marshaledObject = String.format("{\"type\": \"%s\", \"filename\": \"%d\", \"url\": \"%s\"}", attachment.getContentType(), attachment.asPointer().getId(), marshaledAttachment);
+                        if (marshaledArray == null) {
+                            marshaledArray = marshaledObject;
+                        } else {
+                            marshaledArray += ',' + marshaledObject;
+                        }
+                    }
+                    if (marshaledArray != null) {
+                        String truncatedBody = trimmedBody.replaceFirst(",?\\s*\\}$", "");
+                        String bodyWithAttachments = String.format("%s, \"attachments\": [%s]}", truncatedBody, marshaledArray);
+                        wrappedSOFA.setSofa(bodyWithAttachments);
+                    }
+                } else {
+                    System.err.println("Message body does not conform to SOFA protocol.");
+                }
+            }
+
             ObjectMapper mapper = new ObjectMapper();
-            String wrappedMessage;
             try {
-                wrappedMessage = mapper.writeValueAsString(wrappedSOFA);
+                String wrappedMessage = mapper.writeValueAsString(wrappedSOFA);
                 try (Jedis jedis = jedisPool.getResource()) {
                     jedis.publish(address, wrappedMessage);
                 }
@@ -195,10 +220,10 @@ class ReceiveMessageHandler implements Manager.ReceiveMessageHandler {
             final SignalServiceAttachmentPointer pointer = attachment.asPointer();
             System.out.println("  Id: " + pointer.getId() + " Key length: " + pointer.getKey().length + (pointer.getRelay().isPresent() ? " Relay: " + pointer.getRelay().get() : ""));
             System.out.println("  Size: " + (pointer.getSize().isPresent() ? pointer.getSize().get() + " bytes" : "<unavailable>") + (pointer.getPreview().isPresent() ? " (Preview is available: " + pointer.getPreview().get().length + " bytes)" : ""));
-            File file = m.getAttachmentFile(pointer.getId());
-            if (file.exists()) {
-                System.out.println("  Stored plaintext in: " + file);
-            }
+            // File file = m.getAttachmentFile(pointer.getId());
+            // if (file.exists()) {
+            //     System.out.println("  Stored plaintext in: " + file);
+            // }
         }
     }
 
