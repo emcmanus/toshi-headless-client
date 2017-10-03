@@ -252,7 +252,7 @@ class TokenHeadlessClient {
         }
         double timeout = 5;
         boolean returnOnTimeout = false;
-        boolean ignoreAttachments = true;
+        boolean ignoreAttachments = false;
         try {
             m.receiveMessages((long) (timeout * 1000), TimeUnit.MILLISECONDS, returnOnTimeout, ignoreAttachments, new ReceiveMessageHandler(m, jedisPool, wallet.getOwnerAddress()));
         } catch (IOException e) {
