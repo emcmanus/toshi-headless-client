@@ -23,6 +23,14 @@ public final class TokenHeadlessClientConfiguration {
         return input;
     }
 
+    private String getEnvVariable(String name) {
+        String value = System.getenv(name);
+        if (value == null && name.startsWith("TOSHI_")) {
+            value = System.getenv("TOKEN_" + name.substring(6));
+        }
+        return value;
+    }
+
     public String getServer() {
         return server;
     }
@@ -33,7 +41,7 @@ public final class TokenHeadlessClientConfiguration {
 
     public String getSeed() {
         if (this.seed == null) {
-            String seed = System.getenv("TOKEN_APP_SEED");
+            String seed = this.getEnvVariable("TOSHI_APP_SEED");
             this.seed = stripQuotes(seed);
         }
         return this.seed;
@@ -53,7 +61,7 @@ public final class TokenHeadlessClientConfiguration {
 
     public String getUsername() {
         if (this.username == null) {
-            String username = System.getenv("TOKEN_APP_USERNAME");
+            String username = this.getEnvVariable("TOSHI_APP_USERNAME");
             this.username = stripQuotes(username);
         }
         return this.username;
@@ -65,7 +73,7 @@ public final class TokenHeadlessClientConfiguration {
 
     public String getName() {
         if (this.name == null) {
-            String name = System.getenv("TOKEN_APP_NAME");
+            String name = this.getEnvVariable("TOSHI_APP_NAME");
             this.name = stripQuotes(name);
         }
         return this.name;
@@ -77,7 +85,7 @@ public final class TokenHeadlessClientConfiguration {
 
     public String getAbout(){
         if (this.about == null) {
-            String about = System.getenv("TOKEN_APP_ABOUT");
+            String about = this.getEnvVariable("TOSHI_APP_ABOUT");
             this.about = stripQuotes(about);
         }
         return this.about;
@@ -88,7 +96,7 @@ public final class TokenHeadlessClientConfiguration {
     }
 
     public String getAvatar() {
-        return (avatar != null) ? avatar : System.getenv("TOKEN_APP_AVATAR");
+        return (avatar != null) ? avatar : this.getEnvVariable("TOSHI_APP_AVATAR");
     }
 
     public void setAvatar(String avatar) {
