@@ -62,7 +62,7 @@ public class HeadlessRPC {
         error.setMessage("Unknown ETH error");
         error.setCode(0);
 
-        Response<UnsignedTransaction> response = ethService.createTransaction(request.getParams().get("to"), request.getParams().get("value"));
+        Response<UnsignedTransaction> response = ethService.createTransaction(request.getParams());
         if (!response.isSuccessful()) {
             error.setMessage(response.errorBody().string());
             error.setCode(response.code());

@@ -6,7 +6,7 @@ import com.bakkenbaeck.token.network.BalanceService;
 import retrofit2.Response;
 
 import java.io.IOException;
-
+import java.util.HashMap;
 
 public class EthService {
     private final BalanceService balanceService;
@@ -27,12 +27,19 @@ public class EthService {
         return b;
     }
 
-    public Response<UnsignedTransaction> createTransaction(String to, String value) throws IOException {
-        String from = wallet.getPaymentAddress();
+    public Response<UnsignedTransaction> createTransaction(final HashMap<String, String> params) throws IOException {
+        String from = params.get("from");
+        if (from == null) {
+            from = wallet.getPaymentAddress();
+        }
         TransactionRequest request = new TransactionRequest()
-                .setToAddress(to)
-                .setFromAddress(from)
-                .setValue(value);
+            .setToAddress(params.get("to"))
+            .setFromAddress(from)
+            .setValue(params.get("value"))
+            .setGasPrice(params.get("gasPrice"))
+            .setGas(params.get("gas"))
+            .setNonce(params.get("nonce"))
+            .setData(params.get("data"));
         return balanceService.getApi().createTransaction(request).execute();
     }
 
