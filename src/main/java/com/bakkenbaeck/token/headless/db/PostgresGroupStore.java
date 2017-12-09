@@ -78,7 +78,7 @@ public class PostgresGroupStore implements GroupStore {
             long avatarId = rs.getLong("avatar_id");
             rs.close();
             st.close();
-            st = conn.prepareStatement("SELECT * FROM group_member_store WHERE group_id = ?");
+            st = conn.prepareStatement("SELECT * FROM group_members_store WHERE group_id = ?");
             st.setBytes(1, groupId);
             rs = st.executeQuery();
             Collection<String> members = new HashSet<>();
@@ -120,7 +120,7 @@ public class PostgresGroupStore implements GroupStore {
             }
             rs.close();
             st.close();
-            st = conn.prepareStatement("SELECT * FROM group_member_store");
+            st = conn.prepareStatement("SELECT * FROM group_members_store");
             rs = st.executeQuery();
             while (rs.next()) {
                 GroupInfo g = groups.get(rs.getBytes("group_id"));
