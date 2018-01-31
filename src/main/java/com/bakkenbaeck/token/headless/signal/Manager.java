@@ -757,7 +757,7 @@ public class Manager {
         void handleMessage(SignalServiceEnvelope envelope, SignalServiceContent decryptedContent, Throwable e);
     }
 
-    private void handleSignalServiceDataMessage(SignalServiceDataMessage message, boolean isSync, String source, String destination, boolean ignoreAttachments) {
+    private void handleSignalServiceDataMessage(SignalServiceDataMessage message, boolean isSync, String source, String destination) {
         String threadId;
         if (message.getGroupInfo().isPresent()) {
             SignalServiceGroup groupInfo = message.getGroupInfo().get();
@@ -848,20 +848,9 @@ public class Manager {
                 threadStore.updateThread(thread);
             }
         }
-        if (message.getAttachments().isPresent() && !ignoreAttachments) {
-            for (SignalServiceAttachment attachment : message.getAttachments().get()) {
-                if (attachment.isPointer()) {
-                    try {
-                        retrieveAttachment(attachment.asPointer());
-                    } catch (IOException | InvalidMessageException e) {
-                        System.err.println("Failed to retrieve attachment (" + attachment.asPointer().getId() + "): " + e.getMessage());
-                    }
-                }
-            }
-        }
     }
 
-    public void retryFailedReceivedMessages(ReceiveMessageHandler handler, boolean ignoreAttachments) {
+    public void retryFailedReceivedMessages(ReceiveMessageHandler handler) {
         final File cachePath = new File(getMessageCachePath());
         if (!cachePath.exists()) {
             return;
@@ -892,7 +881,7 @@ public class Manager {
                     } catch (Exception e) {
                         continue;
                     }
-                    handleMessage(envelope, content, ignoreAttachments);
+                    handleMessage(envelope, content);
                 }
                 handler.handleMessage(envelope, content, null);
                 try {
@@ -904,8 +893,8 @@ public class Manager {
         }
     }
 
-    public void receiveMessages(long timeout, TimeUnit unit, boolean returnOnTimeout, boolean ignoreAttachments, ReceiveMessageHandler handler) throws IOException {
-        retryFailedReceivedMessages(handler, ignoreAttachments);
+    public void receiveMessages(long timeout, TimeUnit unit, boolean returnOnTimeout, ReceiveMessageHandler handler) throws IOException {
+        retryFailedReceivedMessages(handler);
         final SignalServiceMessageReceiver messageReceiver = new SignalServiceMessageReceiver(serviceUrls, localIdentity.getToshiId(), localIdentity.getPassword(), Base64.encodeBytes(localIdentity.getSignalingKey()), USER_AGENT);
         SignalServiceMessagePipe messagePipe = null;
 
@@ -946,7 +935,7 @@ public class Manager {
                     } catch (Exception e) {
                         exception = e;
                     }
-                    handleMessage(envelope, content, ignoreAttachments);
+                    handleMessage(envelope, content);
                 }
                 handler.handleMessage(envelope, content, exception);
                 if (exception == null || !(exception instanceof org.whispersystems.libsignal.UntrustedIdentityException)) {
@@ -965,17 +954,17 @@ public class Manager {
         }
     }
 
-    private void handleMessage(SignalServiceEnvelope envelope, SignalServiceContent content, boolean ignoreAttachments) {
+    private void handleMessage(SignalServiceEnvelope envelope, SignalServiceContent content) {
         if (content != null) {
             if (content.getDataMessage().isPresent()) {
                 SignalServiceDataMessage message = content.getDataMessage().get();
-                handleSignalServiceDataMessage(message, false, envelope.getSource(), wallet.getOwnerAddress(), ignoreAttachments);
+                handleSignalServiceDataMessage(message, false, envelope.getSource(), wallet.getOwnerAddress());
             }
             if (content.getSyncMessage().isPresent()) {
                 SignalServiceSyncMessage syncMessage = content.getSyncMessage().get();
                 if (syncMessage.getSent().isPresent()) {
                     SignalServiceDataMessage message = syncMessage.getSent().get().getMessage();
-                    handleSignalServiceDataMessage(message, true, envelope.getSource(), syncMessage.getSent().get().getDestination().get(), ignoreAttachments);
+                    handleSignalServiceDataMessage(message, true, envelope.getSource(), syncMessage.getSent().get().getDestination().get());
                 }
                 if (syncMessage.getRequest().isPresent()) {
                     RequestMessage rm = syncMessage.getRequest().get();
