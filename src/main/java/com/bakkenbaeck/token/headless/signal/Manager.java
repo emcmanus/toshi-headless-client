@@ -50,7 +50,9 @@ import org.whispersystems.signalservice.internal.push.SignalServiceProtos;
 import org.whispersystems.signalservice.internal.push.SignalServiceUrl;
 import org.whispersystems.signalservice.internal.util.JsonUtil;
 
+import java.awt.image.BufferedImage;
 import java.io.*;
+import java.lang.IllegalStateException;
 import java.net.URLDecoder;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
@@ -62,6 +64,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.*;
+import javax.imageio.ImageIO;
 
 import static java.nio.file.attribute.PosixFilePermission.*;
 
@@ -114,10 +118,6 @@ public class Manager {
         new File(this.dataPath).mkdirs();
         new File(this.attachmentsPath).mkdirs();
         new File(this.avatarsPath).mkdirs();
-    }
-
-    public String getAttachmentsPath() {
-        return attachmentsPath;
     }
 
     private IdentityKey getIdentity() {
@@ -386,30 +386,82 @@ public class Manager {
         if (attachments != null) {
             SignalServiceAttachments = new ArrayList<>(attachments.size());
             for (String attachment : attachments) {
+                Matcher dataUriComponents = null;
                 try {
-                    SignalServiceAttachments.add(createAttachment(new File(attachment)));
-                } catch (IOException e) {
-                    throw new AttachmentInvalidException(attachment, e);
+                  dataUriComponents = Pattern.compile("^data:([\\*\\-/\\w]+);base64,(.+)$").matcher(attachment);
+                } catch (IllegalStateException e) {
+                  // Not a Data URI
+                }
+
+                Boolean isDataUri = dataUriComponents.find();
+                if (isDataUri) {
+                    String contentType = dataUriComponents.group(1);
+                    String encodedData = dataUriComponents.group(2);
+                    if (contentType == null || contentType == "") {
+                      contentType = "application/octet-stream";
+                    }
+                    try {
+                        SignalServiceAttachmentStream newAttachment = createAttachment(encodedData, contentType);
+                        System.out.println("New attachment has length of " + newAttachment.getLength());
+                        SignalServiceAttachments.add(newAttachment);
+                    } catch (IOException e) {
+                        throw new AttachmentInvalidException(attachment, e);
+                    }
+                } else {
+                    try {
+                        String attachmentPath = "attachments/" + attachment;
+                        Boolean exists = new File(attachmentPath).exists();
+                        if (exists) {
+                            SignalServiceAttachments.add(createAttachment(new File(attachmentPath)));
+                        } else {
+                            System.out.println("Attachment " + attachmentPath + " does not exist");
+                        }
+                    } catch (IOException e) {
+                        throw new AttachmentInvalidException(attachment, e);
+                    }
                 }
             }
         }
         return SignalServiceAttachments;
     }
 
+    private static SignalServiceAttachmentStream createAttachment(String encodedData, String contentType) throws IOException {
+        byte[] data = Base64.decode(encodedData);
+        ByteArrayInputStream attachmentStream = new ByteArrayInputStream(data);
+
+        System.out.println("about to return new attachment from base64, DECODED data has length " + data.length);
+        try {
+            File testFile = new File("attachments/test_attachment.jpg");
+            Files.write(testFile.toPath(), data);
+        } catch (IOException e) {
+            System.out.println("Error creating test file output: " + e.getMessage());
+        }
+
+        return SignalServiceAttachment.newStreamBuilder()
+            .withStream(attachmentStream)
+            .withContentType(contentType)
+            .withLength(data.length)
+            .build();
+    }
+
     private static SignalServiceAttachmentStream createAttachment(File attachmentFile) throws IOException {
-        InputStream attachmentStream = new FileInputStream(attachmentFile);
-        final long attachmentSize = attachmentFile.length();
+        // InputStream attachmentStream = new FileInputStream(attachmentFile);
+        // final long attachmentSize = attachmentFile.length();
         String mime = tika.detect(attachmentFile);
 
         if (mime == null) {
             mime = "application/octet-stream";
         }
 
-        return SignalServiceAttachment.newStreamBuilder()
-            .withStream(attachmentStream)
-            .withContentType(mime)
-            .withLength(attachmentSize)
-            .build();
+        // DEBUG
+        String encodedBytes = Base64.encodeBytes(Files.readAllBytes(attachmentFile.toPath()));
+        return createAttachment(encodedBytes, mime);
+
+        // return SignalServiceAttachment.newStreamBuilder()
+        //     .withStream(attachmentStream)
+        //     .withContentType(mime)
+        //     .withLength(attachmentSize)
+        //     .build();
     }
 
     private Optional<SignalServiceAttachmentStream> createGroupAvatarAttachment(byte[] groupId) throws IOException {
@@ -691,6 +743,13 @@ public class Manager {
                         messageBuilder.withExpiration(0);
                     }
                     message = messageBuilder.build();
+
+                    if (message.getAttachments().isPresent()) {
+                      System.out.println("Message has attachments");
+                    } else {
+                      System.out.println("Message has NO attachments");
+                    }
+
                     try {
                         messageSender.sendMessage(address, message);
                     } catch (UntrustedIdentityException e) {
